@@ -10,11 +10,11 @@
 `curl -fsSL https://raw.githubusercontent.com/psygreg/sloth-bash/main/install.sh | bash`
 
 ## Features
-- Intuitive response: just the file name will run it if executable; load a venv if there's any and wrap it in `python3` if it's a *.py* file; or trigger `xdg-open` for other cases.
-- Flatpak redirection: simplifies running flatpak applications from terminal by making `flatpak run` obsolete through smart command handling. No more `io.github.kolunmi.Bazaar`, just `bazaar` will do the trick!
-- Easily open apps from terminal automatically detaching them with `detach appname`. Perfect for usage with something like Quake Terminal for Gnome or `yakuake`. 
-- `cp` and `mv` redirection to `rsync`: make your file operations more efficient with `rsync`'s delta copies, while also getting it to display progress on your tasks by default.
-- Simple file management in your shell: automatic `ls` after `cd` so you never get lost in your files, and enabled *autocd* shell option so you can navigate your subdirectories more intuitively.
+- **Intuitive response:** just the file name will run it if executable; load a venv if there's any and wrap it in `python3` if it's a *.py* file; or trigger `xdg-open` for other cases.
+- **Flatpak redirection:** simplifies running flatpak applications from terminal by making `flatpak run` obsolete through smart command handling. No more `io.github.kolunmi.Bazaar`, just `bazaar` will do the trick!
+- **Easily open apps from terminal automatically detaching them** with `detach appname`. Perfect for usage with something like Quake Terminal for Gnome or `yakuake`. 
+- **`cp` and `mv` redirection to `rsync`:** make your file operations more efficient with `rsync`'s delta copies, while also getting it to display progress on your tasks by default.
+- **Simple file management in your shell:** automatic `ls` after `cd` so you never get lost in your files, and enabled *autocd* shell option so you can navigate your subdirectories more intuitively.
 
 ## Recommended usage
 - Install *[Starship](https://starship.rs)* for the complete experience.
