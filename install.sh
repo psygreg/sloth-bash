@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-read -rp "Wanna be a Sloth? (y/n) " answer
+read -rp "Wanna be a Sloth? (y/n) " answer < /dev/tty
 if [[ "${answer,,}" != "y" ]]; then
     echo "Ok, bye!"
     exit 0
