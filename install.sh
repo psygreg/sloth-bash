@@ -5,7 +5,9 @@ if [[ "${answer,,}" != "y" ]]; then
     exit 0
 fi
 sudo -v
-curl -sS https://starship.rs/install.sh | sh
+if ! which starship > /dev/null; then
+    curl -sS https://starship.rs/install.sh | sh
+fi
 wget -O ~/.sloth-bash https://raw.githubusercontent.com/psygreg/sloth-bash/main/sloth-bash
 wget -O ~/.alias-list https://raw.githubusercontent.com/psygreg/sloth-bash/main/alias-list
 wget -O ~/.config/starship.toml https://raw.githubusercontent.com/psygreg/sloth-bash/main/starship.toml
