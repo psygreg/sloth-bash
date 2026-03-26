@@ -3,3 +3,6 @@ declare -A FLATPAK_ALIASES=(
     [obs]="com.obsproject.Studio"
     # ...
 )
+# other aliases
+alias md='mkdir -p'
+alias rd='rm -r'

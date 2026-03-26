@@ -2,7 +2,13 @@ source ~/.alias-list
 # bash file manager
 shopt -s autocd
 function cd {
-  builtin cd "$@" && ls -F
+  local arg="$1"
+  case "$arg" in
+    ...)    arg="../..";;
+    ....)   arg="../../..";;
+    .....)  arg="../../../..";;
+  esac
+  builtin cd "$arg" "${@:2}" && ls -F
 }
 # detach app wrapper
 detach() {
@@ -86,6 +92,62 @@ mv() {
     return $?
   fi
   command rsync -ah --info=progress2 --remove-source-files "$@"
+}
+# zsh features
+mkcd() {
+  if [ "$#" -lt 1 ]; then
+    command mkdir "$@"
+    return $?
+  fi
+  mkdir -p "$1" && cd "$1"
+}
+take() {
+  if [ "$#" -lt 1 ]; then
+    echo "take: missing argument" >&2
+    return 1
+  fi
+  local arg="$1"
+  if [[ "$arg" =~ ^https?:// ]]; then
+    if [[ "$arg" == *.git ]]; then
+      git clone "$arg" || return $?
+      local dir=$(basename "$arg" .git)
+      cd "$dir"
+    elif [[ "$arg" == *.tar.gz ]] || [[ "$arg" == *.tar.bz2 ]] || [[ "$arg" == *.tar ]] || [[ "$arg" == *.zip ]] || [[ "$arg" == *.rar ]]; then
+      local filename=$(basename "$arg")
+      wget "$arg" -O "$filename" || return $?
+      local base_dir 
+      if [[ "$filename" == *.tar.gz ]]; then
+        base_dir="${filename%.tar.gz}"
+        mkdir -p "$base_dir"
+        tar -xzf "$filename" -C "$base_dir" || return $?
+      elif [[ "$filename" == *.tar.bz2 ]]; then
+        base_dir="${filename%.tar.bz2}"
+        mkdir -p "$base_dir"
+        tar -xjf "$filename" -C "$base_dir" || return $?
+      elif [[ "$filename" == *.tar ]]; then
+        base_dir="${filename%.tar}"
+        mkdir -p "$base_dir"
+        tar -xf "$filename" -C "$base_dir" || return $?
+      elif [[ "$filename" == *.zip ]]; then
+        base_dir="${filename%.zip}"
+        mkdir -p "$base_dir"
+        unzip "$filename" -d "$base_dir" || return $?
+      elif [[ "$filename" == *.rar ]]; then
+        base_dir="${filename%.rar}"
+        mkdir -p "$base_dir"
+        cd "$base_dir"
+        unrar x "../$filename" || return $?
+        cd ..
+      fi
+      rm "$filename"
+      cd "$base_dir"
+    else
+      echo "take: unsupported URL type" >&2
+      return 1
+    fi
+  else
+    mkcd "$arg"
+  fi
 }
 if which starship &> /dev/null; then
   eval "$(starship init bash)"
