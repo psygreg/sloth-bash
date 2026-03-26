@@ -1,0 +1,5 @@
+# Declare flatpak aliases that can't be automatically traced with a command.
+declare -A FLATPAK_ALIASES=(
+    [obs]="com.obsproject.Studio"
+    # ...
+)

@@ -1,0 +1,70 @@
+source ~/.alias-list
+# bash file manager
+shopt -s autocd
+function cd {
+  builtin cd "$@" && ls -F
+}
+# detach app wrapper
+detach() {
+  local cmd="$1"
+  local resolved="$cmd"
+  if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
+    if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
+      resolved="flatpak run ${FLATPAK_ALIASES[$cmd]}"
+    fi
+  else
+    local match
+    match=$(flatpak list --app --columns=application 2>/dev/null \
+      | grep -v -i "Platform" \
+      | grep -i "\.\(${cmd}\)\(\.\|$\)" \
+      | head -n 1)
+    if [[ -n "$match" ]]; then
+      resolved="flatpak run $match"
+    fi
+  fi
+  nohup $resolved "${@:2}" > /dev/null 2>&1 &
+}
+# python3 wrapper and flatpak matcher
+command_not_found_handle() {
+  if [[ "$1" == *.py ]]; then
+    python3 "$@"
+  fi
+  local cmd="$1"
+  shift
+  local args=("$@")
+  if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
+    if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
+      flatpak run "${FLATPAK_ALIASES[$cmd]}" "${args[@]}"
+      return $?
+    fi
+  fi
+  local match
+    match=$(flatpak list --app --columns=application 2>/dev/null \
+      | grep -v -i "Platform" \
+      | grep -i "\.\(${cmd}\)\(\.\|$\)" \
+      | head -n 1)
+  if [[ -n "$match" ]]; then
+    flatpak run "$match" "${args[@]}"
+    return $?
+  fi
+  echo "bash: $cmd: command not found" >&2
+  return 127
+}
+# cp and mv replacers
+cp() {
+    if [ "$#" -lt 2 ]; then
+        command cp "$@"
+        return $?
+    fi
+    command rsync -ah --info=progress2 "$@"
+}
+mv() {
+    if [ "$#" -lt 2 ]; then
+        command mv "$@"
+        return $?
+    fi
+    command rsync -ah --info=progress2 --remove-source-files "$@"
+}
+if which starship &> /dev/null; then
+  eval "$(starship init bash)"
+fi
