@@ -16,7 +16,7 @@ detach() {
     local match
     match=$(flatpak list --app --columns=application 2>/dev/null \
       | grep -v -i "Platform" \
-      | grep -i "\.\(${cmd}\)\(\.\|$\)" \
+      | grep -iE "(^|\.)${cmd}(\.|$)" \
       | head -n 1)
     if [[ -n "$match" ]]; then
       resolved="flatpak run $match"
@@ -58,7 +58,7 @@ command_not_found_handle() {
   local match
     match=$(flatpak list --app --columns=application 2>/dev/null \
       | grep -v -i "Platform" \
-      | grep -i "\.\(${cmd}\)\(\.\|$\)" \
+      | grep -iE "(^|\.)${cmd}(\.|$)" \
       | head -n 1)
   if [[ -n "$match" ]]; then
     flatpak run "$match" "${args[@]}"
