@@ -29,6 +29,13 @@ command_not_found_handle() {
   if [[ "$1" == *.py ]]; then
     python3 "$@"
   fi
+  if [[ -f "$1" ]]; then
+    if [[ -x "$1" ]]; then
+      "$@"
+    else
+      xdg-open "$1"
+    fi
+  fi
   local cmd="$1"
   shift
   local args=("$@")
