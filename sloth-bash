@@ -32,6 +32,13 @@ detach() {
 }
 # python3 wrapper and flatpak matcher
 command_not_found_handle() {
+  local cmd_lower="${1,,}"
+  local match=$(compgen -c 2>/dev/null | grep -i "^${cmd_lower}$" | head -n 1)
+  if [[ -n "$match" ]]; then
+    "$match" "${@:2}"
+    return $?
+  fi
+  local cmd="$1"
   if [[ "$1" == *.py ]]; then
     local script_dir
     script_dir=$(dirname "$1")
@@ -52,7 +59,6 @@ command_not_found_handle() {
       return $?
     fi
   fi
-  local cmd="$1"
   shift
   local args=("$@")
   if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
@@ -149,10 +155,14 @@ take() {
     mkcd "$arg"
   fi
 }
-# history-based autocompletion
+# rolling tab
 bind 'set show-all-if-ambiguous on'
 bind 'TAB:menu-complete'
 # starship
 if which starship &> /dev/null; then
   eval "$(starship init bash)"
+fi
+# zellij
+if which zellij &> /dev/null; then
+  eval "$(zellij setup --generate-auto-start bash)"
 fi
