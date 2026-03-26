@@ -69,23 +69,23 @@ command_not_found_handle() {
 }
 # cp and mv replacers
 cp() {
-    if [ "$#" -lt 2 ]; then
-        command cp "$@"
-        return $?
-    fi
-    command rsync -ah --info=progress2 "$@"
+  if [ "$#" -lt 2 ]; then
+    command cp "$@"
+    return $?
+  fi
+  command rsync -ah --info=progress2 "$@"
 }
 mv() {
-    if [ "$#" -lt 2 ]; then
-        command mv "$@"
-        return $?
-    fi
-    local dest="${@: -1}"
-    if [[ "$dest" != */* ]]; then
-        command mv "$@"
-        return $?
-    fi
-    command rsync -ah --info=progress2 --remove-source-files "$@"
+  if [ "$#" -lt 2 ]; then
+    command mv "$@"
+    return $?
+  fi
+  local dest="${@: -1}"
+  if [[ "$dest" != */* ]]; then
+    command mv "$@"
+    return $?
+  fi
+  command rsync -ah --info=progress2 --remove-source-files "$@"
 }
 if which starship &> /dev/null; then
   eval "$(starship init bash)"
