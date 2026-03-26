@@ -149,6 +149,10 @@ take() {
     mkcd "$arg"
   fi
 }
+# history-based autocompletion
+bind 'set show-all-if-ambiguous on'
+bind 'TAB:menu-complete'
+# starship
 if which starship &> /dev/null; then
   eval "$(starship init bash)"
 fi
