@@ -27,12 +27,19 @@ detach() {
 # python3 wrapper and flatpak matcher
 command_not_found_handle() {
   if [[ "$1" == *.py ]]; then
+    local script_dir
+    script_dir=$(dirname "$1")
+    if [[ -d "$script_dir/venv" ]]; then
+      source "$script_dir/venv/bin/activate"
+    elif [[ -d "$script_dir/.venv" ]]; then
+      source "$script_dir/.venv/bin/activate"
+    fi
     python3 "$@"
     return $?
   fi
   if [[ -f "$1" ]]; then
     if [[ -x "$1" ]]; then
-      "$@"
+      ./"$1" "${@:2}"
       return $?
     else
       xdg-open "$1"
