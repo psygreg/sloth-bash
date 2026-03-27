@@ -14,19 +14,30 @@ function cd {
 detach() {
   local cmd="$1"
   local resolved="$cmd"
-  if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
-    if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
-      resolved="flatpak run ${FLATPAK_ALIASES[$cmd]}"
-    fi
+  if [[ -f "$cmd" && -x "$cmd" ]]; then
+    resolved="./$cmd"
   else
-    if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
-      local match
-      match=$(flatpak list --app --columns=application 2>/dev/null \
-        | grep -v -i "Platform" \
-        | grep -iE "(^|\.)${cmd}(\.|$)" \
-        | head -n 1)
-      if [[ -n "$match" ]]; then
-        resolved="flatpak run $match"
+    if command -v distrobox &>/dev/null; then
+      local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $1}')
+      if echo "$distroBoxes" | grep -q "^${cmd}$"; then
+        nohup distrobox enter "$cmd" -- "${@:2}" > /dev/null 2>&1 &
+        return $?
+      fi
+    fi
+    if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
+      if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
+        resolved="flatpak run ${FLATPAK_ALIASES[$cmd]}"
+      fi
+    else
+      if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
+        local match
+        match=$(flatpak list --app --columns=application 2>/dev/null \
+          | grep -v -i "Platform" \
+          | grep -iE "(^|\.)${cmd}(\.|$)" \
+          | head -n 1)
+        if [[ -n "$match" ]]; then
+          resolved="flatpak run $match"
+        fi
       fi
     fi
   fi
@@ -77,6 +88,13 @@ command_not_found_handle() {
         | head -n 1)
     if [[ -n "$match" ]]; then
       flatpak run "$match" "${args[@]}"
+      return $?
+    fi
+  fi
+  if [[ -n "${args[0]}" ]] && command -v distrobox &>/dev/null; then
+    local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $1}')
+    if echo "$distroBoxes" | grep -q "^${cmd}$"; then
+      distrobox enter "$cmd" -- "${args[@]}"
       return $?
     fi
   fi
