@@ -122,11 +122,13 @@ mv() {
     return $?
   fi
   local dest="${@: -1}"
-  if [[ "$dest" != */* ]]; then
+  local sources=("${@:1:$#-1}")
+  local source_dir=$(dirname "${sources[0]}")
+  local dest_dir=$(dirname "$dest")
+  if [[ "$source_dir" == "$dest_dir" ]]; then
     command mv "$@"
     return $?
   fi
-  local sources=("${@:1:$#-1}")
   local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
   local threshold=$((100 * 1024 * 1024))
   if [ "$total_size" -gt "$threshold" ]; then
