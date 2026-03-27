@@ -19,13 +19,15 @@ detach() {
       resolved="flatpak run ${FLATPAK_ALIASES[$cmd]}"
     fi
   else
-    local match
-    match=$(flatpak list --app --columns=application 2>/dev/null \
-      | grep -v -i "Platform" \
-      | grep -iE "(^|\.)${cmd}(\.|$)" \
-      | head -n 1)
-    if [[ -n "$match" ]]; then
-      resolved="flatpak run $match"
+    if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
+      local match
+      match=$(flatpak list --app --columns=application 2>/dev/null \
+        | grep -v -i "Platform" \
+        | grep -iE "(^|\.)${cmd}(\.|$)" \
+        | head -n 1)
+      if [[ -n "$match" ]]; then
+        resolved="flatpak run $match"
+      fi
     fi
   fi
   nohup $resolved "${@:2}" > /dev/null 2>&1 &
@@ -67,14 +69,16 @@ command_not_found_handle() {
       return $?
     fi
   fi
-  local match
-    match=$(flatpak list --app --columns=application 2>/dev/null \
-      | grep -v -i "Platform" \
-      | grep -iE "(^|\.)${cmd}(\.|$)" \
-      | head -n 1)
-  if [[ -n "$match" ]]; then
-    flatpak run "$match" "${args[@]}"
-    return $?
+  if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
+    local match
+      match=$(flatpak list --app --columns=application 2>/dev/null \
+        | grep -v -i "Platform" \
+        | grep -iE "(^|\.)${cmd}(\.|$)" \
+        | head -n 1)
+    if [[ -n "$match" ]]; then
+      flatpak run "$match" "${args[@]}"
+      return $?
+    fi
   fi
   echo "bash: $cmd: command not found" >&2
   return 127
