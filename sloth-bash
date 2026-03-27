@@ -18,7 +18,7 @@ detach() {
     resolved="./$cmd"
   else
     if command -v distrobox &>/dev/null; then
-      local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $1}')
+      local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $3}')
       if echo "$distroBoxes" | grep -q "^${cmd}$"; then
         nohup distrobox enter "$cmd" -- "${@:2}" > /dev/null 2>&1 &
         return $?
@@ -92,7 +92,7 @@ command_not_found_handle() {
     fi
   fi
   if [[ -n "${args[0]}" ]] && command -v distrobox &>/dev/null; then
-    local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $1}')
+    local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $3}')
     if echo "$distroBoxes" | grep -q "^${cmd}$"; then
       distrobox enter "$cmd" -- "${args[@]}"
       return $?
