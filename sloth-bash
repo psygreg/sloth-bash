@@ -91,10 +91,14 @@ command_not_found_handle() {
       return $?
     fi
   fi
-  if [[ -n "${args[0]}" ]] && command -v distrobox &>/dev/null; then
+  if command -v distrobox &>/dev/null; then
     local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $3}')
     if echo "$distroBoxes" | grep -q "^${cmd}$"; then
-      distrobox enter "$cmd" -- "${args[@]}"
+      if [[ -n "${args[0]}" ]]; then
+        distrobox enter "$cmd" -- "${args[@]}"
+      else
+        distrobox enter "$cmd"
+      fi
       return $?
     fi
   fi
