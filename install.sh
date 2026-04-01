@@ -28,12 +28,70 @@ header() {
 }
 
 header
-read -rp "Wanna be a Sloth? (y/n) " answer < /dev/tty
-if [[ "${answer,,}" != "y" ]]; then
-    echo "Ok, bye!"
+show_menu() {
+    local choice
+    if [[ -f ~/.sloth-bash ]]; then
+        echo "Sloth-bash already installed. What would you like to do?"
+        echo
+        echo "1) Update sloth-bash"
+        echo "2) Remove sloth-bash"
+        echo "3) Exit"
+        echo
+        read -rp "Enter your choice (1-3): " choice < /dev/tty
+        case "$choice" in
+            1)
+                return 0  # Update
+                ;;
+            2)
+                return 1  # Remove
+                ;;
+            3)
+                echo "Ok, bye!"
+                exit 100
+                ;;
+            *)
+                echo "Invalid choice. Please try again."
+                show_menu
+                ;;
+        esac
+    else
+        echo "Ready to become a Sloth? 🦥"
+        echo
+        echo "1) Install sloth-bash"
+        echo "2) Exit"
+        echo
+        read -rp "Enter your choice (1-2): " choice < /dev/tty
+        case "$choice" in
+            1)
+                return 0  # Install
+                ;;
+            2)
+                echo "Ok, bye!"
+                exit 100
+                ;;
+            *)
+                echo "Invalid choice. Please try again."
+                show_menu
+                ;;
+        esac
+    fi
+}
+show_menu
+action=$?
+
+sudo -v
+if [[ $action -eq 1 ]]; then
+    echo "Removing sloth-bash..."
+    rm -f ~/.sloth-bash ~/.alias-list
+    if [[ -f ~/.bashrc ]]; then
+        sed -i '/source ~\/.sloth-bash/d' ~/.bashrc
+    fi
+    if [[ -f ~/.profile ]]; then
+        sed -i '/source ~\/.sloth-bash/d' ~/.profile
+    fi
+    echo "sloth-bash has been removed."
     exit 0
 fi
-sudo -v
 if ! which starship > /dev/null; then
     curl -sS https://starship.rs/install.sh | sh
 fi
