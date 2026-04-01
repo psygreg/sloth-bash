@@ -5,4 +5,3 @@ declare -A FLATPAK_ALIASES=(
 )
 # other aliases
 alias md='mkdir -p'
-alias rd='rm -r'

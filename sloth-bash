@@ -105,15 +105,76 @@ command_not_found_handle() {
   echo "bash: $cmd: command not found" >&2
   return 127
 }
+# 'all' keyword expansion
+_expand_all_keyword() {
+  local -a out=()
+  local arg dir entries
+  for arg in "$@"; do
+    if [[ "$arg" == "all" ]]; then
+      entries=( "$PWD"/* )
+      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
+        echo "_expand_all_keyword: no entries in $PWD" >&2
+        return 1
+      fi
+      out+=( "${entries[@]}" )
+    elif [[ "$arg" == */all ]]; then
+      dir="${arg%/all}"
+      if [[ ! -d "$dir" ]]; then
+        echo "_expand_all_keyword: not a directory: $dir" >&2
+        return 1
+      fi
+      entries=( "$dir"/* )
+      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
+        echo "_expand_all_keyword: no entries in $dir" >&2
+        return 1
+      fi
+      out+=( "${entries[@]}" )
+    else
+      out+=( "$arg" )
+    fi
+  done
+  printf '%s\0' "${out[@]}"
+}
+_run_with_all() {
+  local cmd="$1"; shift
+  local -a expanded=()
+  while IFS= read -r -d '' item; do
+    expanded+=( "$item" )
+  done < <(_expand_all_keyword "$@") || return $?
+  if [[ "$cmd" == "rm" ]]; then
+    local -a opts=() paths=()
+    for item in "${expanded[@]}"; do
+      if [[ "$item" == -* ]]; then
+        opts+=( "$item" )
+      else
+        paths+=( "$item" )
+      fi
+    done
+    command rm -i "${opts[@]}" "${paths[@]}"
+  elif [[ "$cmd" == "rd" ]]; then
+    local -a dirs_only=()
+    for item in "${expanded[@]}"; do
+      [[ -d "$item" && ! -L "$item" ]] && dirs_only+=( "$item" )
+    done
+    command rm -r "${dirs_only[@]}"
+  else
+    command "$cmd" "${expanded[@]}"
+  fi
+}
 # cp and mv replacers
 cp() {
+  for a in "$@"; do
+    if [[ "$a" == "all" || "$a" == */all ]]; then
+      _run_with_all cp "$@"; return $?
+    fi
+  done
   if [ "$#" -lt 2 ]; then
     command cp "$@"
     return $?
   fi
   local sources=("${@:1:$#-1}")
   local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
-  local threshold=$((100 * 1024 * 1024)) 
+  local threshold=$((100 * 1024 * 1024))
   if [ "$total_size" -gt "$threshold" ]; then
     command rsync -ah --info=progress2 "$@"
   else
@@ -121,6 +182,11 @@ cp() {
   fi
 }
 mv() {
+  for a in "$@"; do
+    if [[ "$a" == "all" || "$a" == */all ]]; then
+      _run_with_all mv "$@"; return $?
+    fi
+  done
   if [ "$#" -lt 2 ]; then
     command mv "$@"
     return $?
@@ -140,6 +206,22 @@ mv() {
   else
     command rsync -ah --remove-source-files "$@"
   fi
+}
+rm() {
+  for a in "$@"; do
+    if [[ "$a" == "all" || "$a" == */all ]]; then
+      _run_with_all rm "$@"; return $?
+    fi
+  done
+  command rm "$@"
+}
+rd() {
+  for a in "$@"; do
+    if [[ "$a" == "all" || "$a" == */all ]]; then
+      _run_with_all rd "$@"; return $?
+    fi
+  done
+  command rmdir "$@"
 }
 # zsh features
 mkcd() {
@@ -163,7 +245,7 @@ take() {
     elif [[ "$arg" == *.tar.gz ]] || [[ "$arg" == *.tar.bz2 ]] || [[ "$arg" == *.tar ]] || [[ "$arg" == *.zip ]] || [[ "$arg" == *.rar ]]; then
       local filename=$(basename "$arg")
       wget "$arg" -O "$filename" || return $?
-      local base_dir 
+      local base_dir
       if [[ "$filename" == *.tar.gz ]]; then
         base_dir="${filename%.tar.gz}"
         mkdir -p "$base_dir"
