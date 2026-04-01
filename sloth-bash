@@ -105,41 +105,6 @@ command_not_found_handle() {
   echo "bash: $cmd: command not found" >&2
   return 127
 }
-# "all" pattern helper
-_expand_all_pattern() {
-  local arg="$1"
-  if [[ "$arg" == "all" ]]; then
-    # Return all files in current directory including hidden
-    shopt -s dotglob
-    local files=(*)
-    shopt -u dotglob
-    printf '%s\n' "${files[@]}"
-  elif [[ "$arg" == */all ]]; then
-    # Return all files in specified directory
-    local dir="${arg%/all}"
-    if [[ -d "$dir" ]]; then
-      shopt -s dotglob
-      local files=("$dir"/*)
-      shopt -u dotglob
-      printf '%s\n' "${files[@]}"
-    fi
-  else
-    echo "$arg"
-  fi
-}
-_process_sources_with_all() {
-  local -n sources_ref=$1
-  local processed=()
-  for src in "${sources_ref[@]}"; do
-    if [[ "$src" == "all" ]] || [[ "$src" == */all ]]; then
-      readarray -t expanded < <(_expand_all_pattern "$src")
-      processed+=("${expanded[@]}")
-    else
-      processed+=("$src")
-    fi
-  done
-  printf '%s\n' "${processed[@]}"
-}
 # cp and mv replacers
 cp() {
   if [ "$#" -lt 2 ]; then
@@ -147,27 +112,12 @@ cp() {
     return $?
   fi
   local sources=("${@:1:$#-1}")
-  local dest="${@: -1}"
-  local has_all=0
-  for src in "${sources[@]}"; do
-    if [[ "$src" == "all" ]] || [[ "$src" == */all ]]; then
-      has_all=1
-      break
-    fi
-  done
-  if [[ $has_all -eq 1 ]]; then
-    local expanded_sources=()
-    while IFS= read -r line; do
-      expanded_sources+=("$line")
-    done < <(_process_sources_with_all sources)
-    sources=("${expanded_sources[@]}")
-  fi
   local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
   local threshold=$((100 * 1024 * 1024)) 
   if [ "$total_size" -gt "$threshold" ]; then
-    command rsync -ah --info=progress2 "${sources[@]}" "$dest"
+    command rsync -ah --info=progress2 "$@"
   else
-    command rsync -ah "${sources[@]}" "$dest"
+    command rsync -ah "$@"
   fi
 }
 mv() {
@@ -177,66 +127,19 @@ mv() {
   fi
   local dest="${@: -1}"
   local sources=("${@:1:$#-1}")
-  local has_all=0
-  for src in "${sources[@]}"; do
-    if [[ "$src" == "all" ]] || [[ "$src" == */all ]]; then
-      has_all=1
-      break
-    fi
-  done
-  if [[ $has_all -eq 1 ]]; then
-    local expanded_sources=()
-    while IFS= read -r line; do
-      expanded_sources+=("$line")
-    done < <(_process_sources_with_all sources)
-    sources=("${expanded_sources[@]}")
-  fi
   local source_dir=$(dirname "${sources[0]}")
   local dest_dir=$(dirname "$dest")
   if [[ "$source_dir" == "$dest_dir" ]]; then
-    command mv "${sources[@]}" "$dest"
+    command mv "$@"
     return $?
   fi
   local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
   local threshold=$((100 * 1024 * 1024))
   if [ "$total_size" -gt "$threshold" ]; then
-    command rsync -ah --info=progress2 --remove-source-files "${sources[@]}" "$dest"
+    command rsync -ah --info=progress2 --remove-source-files "$@"
   else
-    command rsync -ah --remove-source-files "${sources[@]}" "$dest"
+    command rsync -ah --remove-source-files "$@"
   fi
-}
-# remove files wrapper with "all" expansion
-rm() {
-  if [ "$#" -lt 1 ]; then
-    command rm "$@"
-    return $?
-  fi
-  local options=()
-  local targets=()
-  
-  # Separate options from targets
-  for arg in "$@"; do
-    if [[ "$arg" == -* ]]; then
-      options+=("$arg")
-    else
-      targets+=("$arg")
-    fi
-  done
-  local has_all=0
-  for target in "${targets[@]}"; do
-    if [[ "$target" == "all" ]] || [[ "$target" == */all ]]; then
-      has_all=1
-      break
-    fi
-  done
-  if [[ $has_all -eq 1 ]]; then
-    local expanded_targets=()
-    while IFS= read -r line; do
-      expanded_targets+=("$line")
-    done < <(_process_sources_with_all targets)
-    targets=("${expanded_targets[@]}")
-  fi
-  command rm "${options[@]}" "${targets[@]}"
 }
 # zsh features
 mkcd() {
@@ -293,36 +196,6 @@ take() {
   else
     mkcd "$arg"
   fi
-}
-rd() {
-  if [ "$#" -lt 1 ]; then
-    command rm -r "$@"
-    return $?
-  fi
-  local options=()
-  local targets=()
-  for arg in "$@"; do
-    if [[ "$arg" == -* ]]; then
-      options+=("$arg")
-    else
-      targets+=("$arg")
-    fi
-  done
-  local has_all=0
-  for target in "${targets[@]}"; do
-    if [[ "$target" == "all" ]] || [[ "$target" == */all ]]; then
-      has_all=1
-      break
-    fi
-  done
-  if [[ $has_all -eq 1 ]]; then
-    local expanded_targets=()
-    while IFS= read -r line; do
-      expanded_targets+=("$line")
-    done < <(_process_sources_with_all targets)
-    targets=("${expanded_targets[@]}")
-  fi
-  command rm -r "${options[@]}" "${targets[@]}"
 }
 # rolling tab
 bind 'set show-all-if-ambiguous on'

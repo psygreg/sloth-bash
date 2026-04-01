@@ -16,7 +16,6 @@
 - **`cp` and `mv` redirection to `rsync`:** make your file operations more efficient with `rsync`'s delta copies, while also getting it to smartly display progress on larger tasks.
 - **Simple file management in your shell:** automatic `ls` after `cd` so you never get lost in your files, and enabled *autocd* shell option so you can navigate your subdirectories more intuitively.
 - **Most used zsh shortcuts**: `md`, `rd`, `mkcd`, `take`, `~` and `..` work exactly like zsh, while you can use `cd ...`, `cd ....` and `cd .....` for the other upwards navigation commands. 
-- **`all`**: selects all files and subdirectories at its location as targets for `rd`, `rm`, `cp` and `mv`.
 - **Better autocompletion** with *Tab* key cycling through all options instead of just displaying them.
 - **Case-insensitive command parsing:**, `ls`, `Ls`, `lS` or `LS`, your command will always work.
 - **Distrobox passthrough:** enter your distrobox shell with `distroboxname` and pass commands to your distroboxes running `distroboxname command` (and any additional arguments if needed after). As distroboxes follow the user's *`~/.bashrc`* file, sloth-bash also works from within them!
