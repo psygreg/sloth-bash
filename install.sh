@@ -93,7 +93,11 @@ if [[ $action -eq 1 ]]; then
     exit 0
 fi
 if ! which starship > /dev/null; then
-    sudo mkdir -p /usr/local/bin
+    sudo mkdir -p /usr/local/bin # ensure the directory exists before attempting to install starship
+    if [[ ":$PATH:" != *":/usr/local/bin"* ]]; then
+	    export PATH="/usr/local/bin:$PATH"
+	    [[ -f ~/.bashrc ]] && grep -q "/usr/local/bin" ~/.bashrc || echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+    fi
     curl -sS https://starship.rs/install.sh | sh
 fi
 wget -O ~/.sloth-bash https://raw.githubusercontent.com/psygreg/sloth-bash/main/sloth-bash
