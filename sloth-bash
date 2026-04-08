@@ -180,6 +180,47 @@ _run_with_all() {
     command "$cmd" "${expanded[@]}"
   fi
 }
+
+_sloth_has_option_arg() {
+  local arg
+  for arg in "$@"; do
+    if [[ "$arg" == -- ]]; then
+      return 1
+    fi
+    if [[ "$arg" == -* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+_sloth_total_size_bytes() {
+  local total
+  total=$(du -sb "$@" 2>/dev/null | awk 'END {print $1}')
+  if [[ "$total" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$total"
+    return 0
+  fi
+
+  total=$(du -sk "$@" 2>/dev/null | awk '{sum += $1} END {print sum * 1024}')
+  if [[ "$total" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$total"
+    return 0
+  fi
+
+  return 1
+}
+
+_sloth_fzf_history_search() {
+  command -v fzf >/dev/null 2>&1 || return 1
+
+  local selected
+  selected=$(fc -lnr 1 | awk 'NF && !seen[$0]++' | fzf --height 40% --layout=reverse --border --prompt='history> ' --query "$READLINE_LINE") || return 0
+
+  READLINE_LINE="$selected"
+  READLINE_POINT=${#READLINE_LINE}
+}
+
 # cp and mv replacers
 cp() {
   for a in "$@"; do
@@ -191,13 +232,21 @@ cp() {
     command cp "$@"
     return $?
   fi
+  if _sloth_has_option_arg "$@"; then
+    command cp "$@"
+    return $?
+  fi
   local sources=("${@:1:$#-1}")
-  local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
+  local total_size
+  total_size=$(_sloth_total_size_bytes "${sources[@]}") || {
+    command cp "$@"
+    return $?
+  }
   local threshold=$((100 * 1024 * 1024))
-  if [ "$total_size" -gt "$threshold" ]; then
-    command rsync -ah --info=progress2 "$@"
+  if (( total_size > threshold )); then
+    command rsync -ah --no-owner --no-group --info=progress2 "$@"
   else
-    command rsync -ah "$@"
+    command rsync -ah --no-owner --no-group "$@"
   fi
 }
 mv() {
@@ -210,6 +259,10 @@ mv() {
     command mv "$@"
     return $?
   fi
+  if _sloth_has_option_arg "$@"; then
+    command mv "$@"
+    return $?
+  fi
   local dest="${@: -1}"
   local sources=("${@:1:$#-1}")
   local source_dir=$(dirname "${sources[0]}")
@@ -218,12 +271,16 @@ mv() {
     command mv "$@"
     return $?
   fi
-  local total_size=$(du -cb "${sources[@]}" 2>/dev/null | tail -n 1 | awk '{print $1}')
+  local total_size
+  total_size=$(_sloth_total_size_bytes "${sources[@]}") || {
+    command mv "$@"
+    return $?
+  }
   local threshold=$((100 * 1024 * 1024))
-  if [ "$total_size" -gt "$threshold" ]; then
-    command rsync -ah --info=progress2 --remove-source-files "$@"
+  if (( total_size > threshold )); then
+    command rsync -ah --no-owner --no-group --info=progress2 --remove-source-files "$@"
   else
-    command rsync -ah --remove-source-files "$@"
+    command rsync -ah --no-owner --no-group --remove-source-files "$@"
   fi
 }
 rm() {
@@ -307,6 +364,9 @@ if [[ $- == *i* ]]; then
   # rolling tab
   bind 'set show-all-if-ambiguous on'
   bind 'TAB:menu-complete'
+  if command -v fzf >/dev/null 2>&1; then
+    bind -x '"\C-r":_sloth_fzf_history_search'
+  fi
   # starship
   if which starship &> /dev/null; then
     eval "$(starship init bash)"
