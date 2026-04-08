@@ -1,4 +1,4 @@
-source ~/.alias-list
+[[ -f ~/.alias-list ]] && source ~/.alias-list
 
 # bash file manager
 shopt -s autocd
@@ -221,6 +221,25 @@ _sloth_fzf_history_search() {
   READLINE_POINT=${#READLINE_LINE}
 }
 
+_sloth_enable_basic_colors() {
+  if command -v dircolors >/dev/null 2>&1; then
+    if [[ -r ~/.dircolors ]]; then
+      eval "$(dircolors -b ~/.dircolors)"
+    else
+      eval "$(dircolors -b)"
+    fi
+    alias ls='ls --color=auto'
+    alias dir='dir --color=auto'
+    alias vdir='vdir --color=auto'
+    alias grep='grep --color=auto'
+    LS_COLORS+=':ow=01;33'
+  fi
+
+  alias ll='ls -l'
+  alias la='ls -A'
+  alias l='ls -CF'
+}
+
 # cp and mv replacers
 cp() {
   for a in "$@"; do
@@ -361,18 +380,19 @@ take() {
 }
 # interactive shell extras
 if [[ $- == *i* ]]; then
+  _sloth_enable_basic_colors
   # rolling tab
   bind 'set show-all-if-ambiguous on'
   bind 'TAB:menu-complete'
   if command -v fzf >/dev/null 2>&1; then
-    bind -x '"\C-r":_sloth_fzf_history_search'
+    eval "$(fzf --bash)"
   fi
   # starship
-  if which starship &> /dev/null; then
+  if command -v starship >/dev/null 2>&1; then
     eval "$(starship init bash)"
   fi
   # zellij
-  if which zellij &> /dev/null; then
+  if command -v zellij >/dev/null 2>&1; then
     eval "$(zellij setup --generate-auto-start bash)"
   fi
 fi

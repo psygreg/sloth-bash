@@ -18,13 +18,14 @@
 - **Most used zsh shortcuts**: `md`, `rd`, `mkcd`, `take`, `~` and `..` work exactly like zsh, while you can use `cd ...`, `cd ....` and `cd .....` for the other upwards navigation commands. 
 - **`all`**: selects all files and subdirectories at its location as targets for `rd`, `rm`, `cp` and `mv`.
 - **Better autocompletion** with *Tab* key cycling through all options instead of just displaying them.
-- **Fuzzy history search with `Ctrl+R`:** if *fzf* is installed, `Ctrl+R` opens an interactive fuzzy search over your shell history.
+- **FZF shell bindings:** if *fzf* is installed, `sloth-bash` enables the standard Bash integration, including fuzzy history search on `Ctrl+R`.
+- **Basic command colors:** enables colored output for `ls`, `dir`, `vdir` and `grep`, plus familiar aliases like `ll`, `la` and `l`.
 - **Case-insensitive command parsing:**, `ls`, `Ls`, `lS` or `LS`, your command will always work.
 - **Distrobox passthrough:** enter your distrobox shell with `distroboxname` and pass commands to your distroboxes running `distroboxname command` (and any additional arguments if needed after). As distroboxes follow the user's *`~/.bashrc`* file, sloth-bash also works from within them!
 
 ## Recommended usage
 - Install *[Starship](https://starship.rs)* for the complete experience.
-- Install *[fzf](https://github.com/junegunn/fzf)* if you want fuzzy history search on `Ctrl+R`.
+- Install *[fzf](https://github.com/junegunn/fzf)* if you want the full fuzzy shell bindings.
 - Copy **sloth-bash** to **`~/.sloth-bash`**
 - Copy **alias-list** to **`~/.alias-list`**
 - Copy **starship.toml** to **`~/.config/starship.toml`** (not required if you don't wanna use *Starship*)
