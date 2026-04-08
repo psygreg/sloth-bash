@@ -1,4 +1,5 @@
 source ~/.alias-list
+
 # bash file manager
 shopt -s autocd
 function cd {
@@ -43,6 +44,15 @@ detach() {
   fi
   nohup $resolved "${@:2}" > /dev/null 2>&1 &
 }
+
+_sloth_run_quick_lookup() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 0.5s "$@" 2>/dev/null
+  else
+    "$@" 2>/dev/null
+  fi
+}
+
 # python3 wrapper and flatpak matcher
 command_not_found_handle() {
   local cmd_lower="${1,,}"
@@ -74,26 +84,35 @@ command_not_found_handle() {
   fi
   shift
   local args=("$@")
-  if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
+  if command -v flatpak >/dev/null 2>&1 && [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
     if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
       flatpak run "${FLATPAK_ALIASES[$cmd]}" "${args[@]}"
       return $?
     fi
   fi
-  if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
+  if command -v flatpak >/dev/null 2>&1 && [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
     local match
-      match=$(flatpak list --app --columns=application 2>/dev/null \
+      match=$(_sloth_run_quick_lookup flatpak list --app --columns=application \
+        | grep -v -i "Platform" \
+        | grep -iF -m 1 "$cmd")
+    if [[ -n "$match" ]]; then
+      match=$(printf '%s\n' "$match" | head -n 1)
+    fi
+    if [[ -z "$match" ]]; then
+      match=$(_sloth_run_quick_lookup flatpak list --app --columns=application \
         | grep -v -i "Platform" \
         | grep -iE "(^|\.)${cmd}(\.|$)" \
         | head -n 1)
+    fi
     if [[ -n "$match" ]]; then
       flatpak run "$match" "${args[@]}"
       return $?
     fi
   fi
   if command -v distrobox &>/dev/null; then
-    local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $3}')
-    if echo "$distroBoxes" | grep -q "^${cmd}$"; then
+    local distroBoxes
+    distroBoxes=$(_sloth_run_quick_lookup distrobox list | awk 'NR>1 {print $3}')
+    if printf '%s\n' "$distroBoxes" | grep -Fxq "$cmd"; then
       if [[ -n "${args[0]}" ]]; then
         distrobox enter "$cmd" -- "${args[@]}"
       else
@@ -283,14 +302,17 @@ take() {
     mkcd "$arg"
   fi
 }
-# rolling tab
-bind 'set show-all-if-ambiguous on'
-bind 'TAB:menu-complete'
-# starship
-if which starship &> /dev/null; then
-  eval "$(starship init bash)"
-fi
-# zellij
-if which zellij &> /dev/null; then
-  eval "$(zellij setup --generate-auto-start bash)"
+# interactive shell extras
+if [[ $- == *i* ]]; then
+  # rolling tab
+  bind 'set show-all-if-ambiguous on'
+  bind 'TAB:menu-complete'
+  # starship
+  if which starship &> /dev/null; then
+    eval "$(starship init bash)"
+  fi
+  # zellij
+  if which zellij &> /dev/null; then
+    eval "$(zellij setup --generate-auto-start bash)"
+  fi
 fi
