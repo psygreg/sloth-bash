@@ -1,4 +1,20 @@
 #!/usr/bin/env bash
+
+# Argument parsing: Check if called from app
+APP_MODE=false
+for arg in "$@"; do
+    case "$arg" in
+        --from-app)
+            APP_MODE=true
+            ;;
+    esac
+done
+
+# If called from app and SCRIPT_DIR is set, source shared libraries
+if [[ "$APP_MODE" == true ]] && [[ -n "$SCRIPT_DIR" ]] && [[ -f "$SCRIPT_DIR/libs/linuxtoys.lib" ]]; then
+    source "$SCRIPT_DIR/libs/linuxtoys.lib"
+fi
+
 header() {
     echo "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣠⡀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣤⠤⠴⠖⠚⠛⠉⠉⠉⠀⠀ "
     echo "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡀⠀⢰⣸⣶⣇⠀⢰⣿⣿⣷⣤⠤⠴⠖⠒⠛⠉⠉⠁⠀⠀⠀⠀⠀⠀⣀⣀⣤⠤⠶⠀  "
@@ -99,6 +115,14 @@ if ! which starship > /dev/null; then
 	    [[ -f ~/.bashrc ]] && grep -q "/usr/local/bin" ~/.bashrc || echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
     fi
     curl -sS https://starship.rs/install.sh | sh
+fi
+if [ "$APP_MODE" = true ]; then
+    pkg_install fzf
+else
+    if ! which fzf > /dev/null; then
+        source <(curl -s https://raw.githubusercontent.com/psygreg/linuxtoys/master/p3/libs/linuxtoys.lib)
+        pkg_install fzf --ignore-appends
+    fi
 fi
 wget -O ~/.sloth-bash https://raw.githubusercontent.com/psygreg/sloth-bash/main/sloth-bash
 wget -O ~/.alias-list https://raw.githubusercontent.com/psygreg/sloth-bash/main/alias-list
