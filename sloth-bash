@@ -3,6 +3,11 @@
 # bash file manager
 shopt -s autocd
 function cd {
+  if [[ $# -eq 0 ]]; then
+    builtin cd && ls -F
+    return $?
+  fi
+
   local arg="$1"
   case "$arg" in
     ...)    arg="../..";;
