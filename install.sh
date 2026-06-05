@@ -47,16 +47,16 @@ header
 show_menu() {
     local choice
     if [[ -f ~/.sloth-bash ]]; then
-        echo "Sloth-bash already installed. What would you like to do?"
+        echo "What would you like to do?"
         echo
-        echo "1) Update sloth-bash"
+        echo "1) Install or update sloth-bash"
         echo "2) Remove sloth-bash"
         echo "3) Exit"
         echo
         read -rp "Enter your choice (1-3): " choice < /dev/tty
         case "$choice" in
             1)
-                return 0  # Update
+                return 0  # Install or update
                 ;;
             2)
                 return 1  # Remove
