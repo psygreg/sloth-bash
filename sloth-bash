@@ -1,188 +1,15 @@
+# shellcheck disable=SC1090
 [[ -f ~/.alias-list ]] && source ~/.alias-list
 
-# bash file manager
-shopt -s autocd
-function cd {
-  if [[ $# -eq 0 ]]; then
-    builtin cd && ls -F
-    return $?
-  fi
-
-  local arg="$1"
-  case "$arg" in
-    ...)    arg="../..";;
-    ....)   arg="../../..";;
-    .....)  arg="../../../..";;
-  esac
-  builtin cd "$arg" "${@:2}" && ls -F
-}
-# detach app wrapper
-detach() {
-  local cmd="$1"
-  local resolved="$cmd"
-  if [[ -f "$cmd" && -x "$cmd" ]]; then
-    resolved="./$cmd"
-  else
-    if command -v distrobox &>/dev/null; then
-      local distroBoxes=$(distrobox list 2>/dev/null | awk 'NR>1 {print $3}')
-      if echo "$distroBoxes" | grep -q "^${cmd}$"; then
-        nohup distrobox enter "$cmd" -- "${@:2}" > /dev/null 2>&1 &
-        return $?
-      fi
-    fi
-    if [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
-      if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
-        resolved="flatpak run ${FLATPAK_ALIASES[$cmd]}"
-      fi
-    else
-      if [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
-        local match
-        match=$(flatpak list --app --columns=application 2>/dev/null \
-          | grep -v -i "Platform" \
-          | grep -iE "(^|\.)${cmd}(\.|$)" \
-          | head -n 1)
-        if [[ -n "$match" ]]; then
-          resolved="flatpak run $match"
-        fi
-      fi
-    fi
-  fi
-  nohup $resolved "${@:2}" > /dev/null 2>&1 &
-}
+# -----------------------------------------------------------------------------
+# helpers
+# -----------------------------------------------------------------------------
 
 _sloth_run_quick_lookup() {
   if command -v timeout >/dev/null 2>&1; then
     timeout 0.5s "$@" 2>/dev/null
   else
     "$@" 2>/dev/null
-  fi
-}
-
-# python3 wrapper and flatpak matcher
-command_not_found_handle() {
-  local cmd_lower="${1,,}"
-  local match=$(compgen -c 2>/dev/null | grep -i "^${cmd_lower}$" | head -n 1)
-  if [[ -n "$match" ]]; then
-    "$match" "${@:2}"
-    return $?
-  fi
-  local cmd="$1"
-  if [[ "$1" == *.py ]]; then
-    local script_dir
-    script_dir=$(dirname "$1")
-    if [[ -d "$script_dir/venv" ]]; then
-      source "$script_dir/venv/bin/activate"
-    elif [[ -d "$script_dir/.venv" ]]; then
-      source "$script_dir/.venv/bin/activate"
-    fi
-    python3 "$@"
-    return $?
-  fi
-  if [[ -f "$1" ]]; then
-    if [[ -x "$1" ]]; then
-      ./"$1" "${@:2}"
-      return $?
-    else
-      xdg-open "$1"
-      return $?
-    fi
-  fi
-  shift
-  local args=("$@")
-  if command -v flatpak >/dev/null 2>&1 && [[ -n "${FLATPAK_ALIASES[$cmd]}" ]]; then
-    if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
-      flatpak run "${FLATPAK_ALIASES[$cmd]}" "${args[@]}"
-      return $?
-    fi
-  fi
-  if command -v flatpak >/dev/null 2>&1 && [[ "${cmd,,}" != "kde" && "${cmd,,}" != "gnome" ]]; then
-    local match
-      match=$(_sloth_run_quick_lookup flatpak list --app --columns=application \
-        | grep -v -i "Platform" \
-        | grep -iF -m 1 "$cmd")
-    if [[ -n "$match" ]]; then
-      match=$(printf '%s\n' "$match" | head -n 1)
-    fi
-    if [[ -z "$match" ]]; then
-      match=$(_sloth_run_quick_lookup flatpak list --app --columns=application \
-        | grep -v -i "Platform" \
-        | grep -iE "(^|\.)${cmd}(\.|$)" \
-        | head -n 1)
-    fi
-    if [[ -n "$match" ]]; then
-      flatpak run "$match" "${args[@]}"
-      return $?
-    fi
-  fi
-  if command -v distrobox &>/dev/null; then
-    local distroBoxes
-    distroBoxes=$(_sloth_run_quick_lookup distrobox list | awk 'NR>1 {print $3}')
-    if printf '%s\n' "$distroBoxes" | grep -Fxq "$cmd"; then
-      if [[ -n "${args[0]}" ]]; then
-        distrobox enter "$cmd" -- "${args[@]}"
-      else
-        distrobox enter "$cmd"
-      fi
-      return $?
-    fi
-  fi
-  echo "bash: $cmd: command not found" >&2
-  return 127
-}
-# 'all' keyword expansion
-_expand_all_keyword() {
-  local -a out=()
-  local arg dir entries
-  for arg in "$@"; do
-    if [[ "$arg" == "all" ]]; then
-      entries=( "$PWD"/* )
-      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
-        echo "_expand_all_keyword: no entries in $PWD" >&2
-        return 1
-      fi
-      out+=( "${entries[@]}" )
-    elif [[ "$arg" == */all ]]; then
-      dir="${arg%/all}"
-      if [[ ! -d "$dir" ]]; then
-        echo "_expand_all_keyword: not a directory: $dir" >&2
-        return 1
-      fi
-      entries=( "$dir"/* )
-      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
-        echo "_expand_all_keyword: no entries in $dir" >&2
-        return 1
-      fi
-      out+=( "${entries[@]}" )
-    else
-      out+=( "$arg" )
-    fi
-  done
-  printf '%s\0' "${out[@]}"
-}
-_run_with_all() {
-  local cmd="$1"; shift
-  local -a expanded=()
-  while IFS= read -r -d '' item; do
-    expanded+=( "$item" )
-  done < <(_expand_all_keyword "$@") || return $?
-  if [[ "$cmd" == "rm" ]]; then
-    local -a opts=() paths=()
-    for item in "${expanded[@]}"; do
-      if [[ "$item" == -* ]]; then
-        opts+=( "$item" )
-      else
-        paths+=( "$item" )
-      fi
-    done
-    command rm -i "${opts[@]}" "${paths[@]}"
-  elif [[ "$cmd" == "rd" ]]; then
-    local -a dirs_only=()
-    for item in "${expanded[@]}"; do
-      [[ -d "$item" && ! -L "$item" ]] && dirs_only+=( "$item" )
-    done
-    command rm -r "${dirs_only[@]}"
-  else
-    command "$cmd" "${expanded[@]}"
   fi
 }
 
@@ -216,14 +43,321 @@ _sloth_total_size_bytes() {
   return 1
 }
 
-_sloth_fzf_history_search() {
-  command -v fzf >/dev/null 2>&1 || return 1
+# Same filesystem? Prefer real mv over rsync.
+_sloth_same_filesystem() {
+  local src="$1" dest="$2"
+  local src_dev dest_dev dest_probe
 
-  local selected
-  selected=$(fc -lnr 1 | awk 'NF && !seen[$0]++' | fzf --height 40% --layout=reverse --border --prompt='history> ' --query "$READLINE_LINE") || return 0
+  src_dev=$(stat -c '%d' "$src" 2>/dev/null) || return 1
+  if [[ -e "$dest" ]]; then
+    dest_probe="$dest"
+  else
+    dest_probe=$(dirname -- "$dest")
+  fi
+  dest_dev=$(stat -c '%d' "$dest_probe" 2>/dev/null) || return 1
+  [[ "$src_dev" == "$dest_dev" ]]
+}
 
-  READLINE_LINE="$selected"
-  READLINE_POINT=${#READLINE_LINE}
+# Exact case-insensitive command name match (no regex).
+_sloth_find_ci_command() {
+  local needle="${1,,}"
+  local cand
+  while IFS= read -r cand; do
+    [[ -n "$cand" ]] || continue
+    if [[ "${cand,,}" == "$needle" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done < <(compgen -c 2>/dev/null)
+  return 1
+}
+
+_sloth_flatpak_from_alias() {
+  local cmd="$1"
+  [[ -n "${FLATPAK_ALIASES[$cmd]:-}" ]] || return 1
+  command -v flatpak >/dev/null 2>&1 || return 1
+  if flatpak info "${FLATPAK_ALIASES[$cmd]}" > /dev/null 2>&1; then
+    printf '%s\n' "${FLATPAK_ALIASES[$cmd]}"
+    return 0
+  fi
+  return 1
+}
+
+# Match Flatpak app id by exact case-insensitive token (no regex).
+_sloth_flatpak_from_list() {
+  local cmd="$1"
+  local cmd_lower="${cmd,,}"
+  local app id_lower last
+
+  command -v flatpak >/dev/null 2>&1 || return 1
+  [[ "${cmd_lower}" == "kde" || "${cmd_lower}" == "gnome" ]] && return 1
+
+  while IFS= read -r app; do
+    [[ -n "$app" ]] || continue
+    [[ "${app,,}" == *platform* ]] && continue
+    id_lower="${app,,}"
+    last="${id_lower##*.}"
+    if [[ "$id_lower" == "$cmd_lower" || "$last" == "$cmd_lower" ]]; then
+      printf '%s\n' "$app"
+      return 0
+    fi
+  done < <(_sloth_run_quick_lookup flatpak list --app --columns=application)
+  return 1
+}
+
+_sloth_is_distrobox() {
+  local cmd="$1"
+  local boxes
+  command -v distrobox >/dev/null 2>&1 || return 1
+  boxes=$(_sloth_run_quick_lookup distrobox list | awk 'NR>1 {print $3}')
+  printf '%s\n' "$boxes" | grep -Fxq "$cmd"
+}
+
+# Resolve cmd into: kind|payload
+# kinds: local | flatpak | distrobox | none
+_sloth_resolve_cmd() {
+  local cmd="$1"
+  local app
+
+  if [[ -f "$cmd" && -x "$cmd" ]]; then
+    printf 'local|%s\n' "$cmd"
+    return 0
+  fi
+
+  if app=$(_sloth_flatpak_from_alias "$cmd"); then
+    printf 'flatpak|%s\n' "$app"
+    return 0
+  fi
+
+  if app=$(_sloth_flatpak_from_list "$cmd"); then
+    printf 'flatpak|%s\n' "$app"
+    return 0
+  fi
+
+  if _sloth_is_distrobox "$cmd"; then
+    printf 'distrobox|%s\n' "$cmd"
+    return 0
+  fi
+
+  printf 'none|\n'
+  return 1
+}
+
+_sloth_run_local() {
+  local cmd="$1"; shift
+  if [[ "$cmd" == /* || "$cmd" == ./* || "$cmd" == ../* || "$cmd" == */* ]]; then
+    "$cmd" "$@"
+  else
+    ./"$cmd" "$@"
+  fi
+}
+
+_sloth_python_for() {
+  local script="$1"
+  local script_dir
+  script_dir=$(dirname -- "$script")
+  if [[ -x "$script_dir/venv/bin/python3" ]]; then
+    printf '%s\n' "$script_dir/venv/bin/python3"
+  elif [[ -x "$script_dir/.venv/bin/python3" ]]; then
+    printf '%s\n' "$script_dir/.venv/bin/python3"
+  else
+    printf 'python3\n'
+  fi
+}
+
+# Remove empty ancestor directories left behind by rsync --remove-source-files.
+_sloth_prune_empty_dirs() {
+  local path
+  for path in "$@"; do
+    [[ -d "$path" ]] || continue
+    find "$path" -depth -type d -empty -delete 2>/dev/null
+    [[ -d "$path" && -z "$(find "$path" -mindepth 1 -print -quit 2>/dev/null)" ]] && rmdir "$path" 2>/dev/null
+  done
+}
+
+# -----------------------------------------------------------------------------
+# bash file manager
+# -----------------------------------------------------------------------------
+shopt -s autocd
+cd() {
+  if [[ $# -eq 0 ]]; then
+    builtin cd && ls -F
+    return $?
+  fi
+
+  local arg="$1"
+  case "$arg" in
+    ...)    arg="../..";;
+    ....)   arg="../../..";;
+    .....)  arg="../../../..";;
+  esac
+  builtin cd "$arg" "${@:2}" && ls -F
+}
+
+# detach app wrapper
+detach() {
+  if [[ $# -lt 1 ]]; then
+    echo "detach: missing command" >&2
+    return 1
+  fi
+
+  local cmd="$1"
+  shift
+  local resolved kind payload
+
+  resolved=$(_sloth_resolve_cmd "$cmd") || true
+  kind="${resolved%%|*}"
+  payload="${resolved#*|}"
+
+  case "$kind" in
+    local)
+      if [[ "$payload" == /* || "$payload" == ./* || "$payload" == ../* || "$payload" == */* ]]; then
+        nohup "$payload" "$@" > /dev/null 2>&1 &
+      else
+        nohup ./"$payload" "$@" > /dev/null 2>&1 &
+      fi
+      ;;
+    flatpak)
+      nohup flatpak run "$payload" "$@" > /dev/null 2>&1 &
+      ;;
+    distrobox)
+      if [[ $# -gt 0 ]]; then
+        nohup distrobox enter "$payload" -- "$@" > /dev/null 2>&1 &
+      else
+        nohup distrobox enter "$payload" > /dev/null 2>&1 &
+      fi
+      ;;
+    *)
+      if command -v "$cmd" >/dev/null 2>&1; then
+        nohup "$cmd" "$@" > /dev/null 2>&1 &
+      else
+        echo "detach: command not found: $cmd" >&2
+        return 127
+      fi
+      ;;
+  esac
+}
+
+# python3 wrapper and flatpak matcher
+command_not_found_handle() {
+  local cmd="$1"
+  local match py resolved kind payload
+
+  # Case-insensitive exact match against known commands
+  if match=$(_sloth_find_ci_command "$cmd"); then
+    "$match" "${@:2}"
+    return $?
+  fi
+
+  # Local *.py: use venv python without sourcing activate
+  if [[ "$cmd" == *.py ]]; then
+    if [[ ! -f "$cmd" ]]; then
+      echo "bash: $cmd: No such file or directory" >&2
+      return 127
+    fi
+    py=$(_sloth_python_for "$cmd")
+    "$py" "$@"
+    return $?
+  fi
+
+  # Local file: run if executable, else open
+  if [[ -f "$cmd" ]]; then
+    if [[ -x "$cmd" ]]; then
+      _sloth_run_local "$cmd" "${@:2}"
+      return $?
+    else
+      xdg-open "$cmd"
+      return $?
+    fi
+  fi
+
+  resolved=$(_sloth_resolve_cmd "$cmd") || true
+  kind="${resolved%%|*}"
+  payload="${resolved#*|}"
+
+  case "$kind" in
+    flatpak)
+      flatpak run "$payload" "${@:2}"
+      return $?
+      ;;
+    distrobox)
+      if [[ $# -gt 1 ]]; then
+        distrobox enter "$payload" -- "${@:2}"
+      else
+        distrobox enter "$payload"
+      fi
+      return $?
+      ;;
+  esac
+
+  echo "bash: $cmd: command not found" >&2
+  return 127
+}
+
+# 'all' keyword expansion
+_expand_all_keyword() {
+  local -a out=()
+  local arg dir entries
+  for arg in "$@"; do
+    if [[ "$arg" == "all" ]]; then
+      entries=( "$PWD"/* )
+      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
+        echo "_expand_all_keyword: no entries in $PWD" >&2
+        return 1
+      fi
+      out+=( "${entries[@]}" )
+    elif [[ "$arg" == */all ]]; then
+      dir="${arg%/all}"
+      if [[ ! -d "$dir" ]]; then
+        echo "_expand_all_keyword: not a directory: $dir" >&2
+        return 1
+      fi
+      entries=( "$dir"/* )
+      if [[ "${#entries[@]}" -eq 1 && ! -e "${entries[0]}" ]]; then
+        echo "_expand_all_keyword: no entries in $dir" >&2
+        return 1
+      fi
+      out+=( "${entries[@]}" )
+    else
+      out+=( "$arg" )
+    fi
+  done
+  printf '%s\0' "${out[@]}"
+}
+
+_run_with_all() {
+  local cmd="$1"; shift
+  local -a expanded=()
+  local status=0
+  while IFS= read -r -d '' item; do
+    expanded+=( "$item" )
+  done < <(_expand_all_keyword "$@") || return $?
+
+  if [[ "$cmd" == "rm" ]]; then
+    local -a opts=() paths=()
+    for item in "${expanded[@]}"; do
+      if [[ "$item" == -* ]]; then
+        opts+=( "$item" )
+      else
+        paths+=( "$item" )
+      fi
+    done
+    command rm -i "${opts[@]}" "${paths[@]}"
+    return $?
+  elif [[ "$cmd" == "rd" ]]; then
+    local item
+    for item in "${expanded[@]}"; do
+      if [[ -d "$item" && ! -L "$item" ]]; then
+        if ! command rmdir "$item"; then
+          status=1
+        fi
+      fi
+    done
+    return "$status"
+  else
+    command "$cmd" "${expanded[@]}"
+    return $?
+  fi
 }
 
 _sloth_enable_basic_colors() {
@@ -247,6 +381,7 @@ _sloth_enable_basic_colors() {
 
 # cp and mv replacers
 cp() {
+  local a
   for a in "$@"; do
     if [[ "$a" == "all" || "$a" == */all ]]; then
       _run_with_all cp "$@"; return $?
@@ -260,7 +395,26 @@ cp() {
     command cp "$@"
     return $?
   fi
-  local sources=("${@:1:$#-1}")
+
+  # Without flags, refuse directories (match GNU cp) and never invent -r via rsync.
+  local -a sources=("${@:1:$#-1}")
+  local dest="${!#}"
+  local src
+  for src in "${sources[@]}"; do
+    if [[ -d "$src" && ! -L "$src" ]]; then
+      echo "cp: -r not specified; omitting directory '$src'" >&2
+      return 1
+    fi
+  done
+
+  # Symlinks / special files: keep GNU cp semantics
+  for src in "${sources[@]}"; do
+    if [[ -L "$src" || ! -f "$src" ]]; then
+      command cp "$@"
+      return $?
+    fi
+  done
+
   local total_size
   total_size=$(_sloth_total_size_bytes "${sources[@]}") || {
     command cp "$@"
@@ -273,7 +427,9 @@ cp() {
     command rsync -ah --no-owner --no-group "$@"
   fi
 }
+
 mv() {
+  local a
   for a in "$@"; do
     if [[ "$a" == "all" || "$a" == */all ]]; then
       _run_with_all mv "$@"; return $?
@@ -287,27 +443,46 @@ mv() {
     command mv "$@"
     return $?
   fi
-  local dest="${@: -1}"
-  local sources=("${@:1:$#-1}")
-  local source_dir=$(dirname "${sources[0]}")
-  local dest_dir=$(dirname "$dest")
-  if [[ "$source_dir" == "$dest_dir" ]]; then
+
+  local dest="${!#}"
+  local -a sources=("${@:1:$#-1}")
+  local source_dir
+  source_dir=$(dirname -- "${sources[0]}")
+
+  # Same-directory rename: always real mv
+  if [[ "$source_dir" == "$(dirname -- "$dest")" ]]; then
     command mv "$@"
     return $?
   fi
+
+  # Same filesystem (including directories): real mv is atomic and complete
+  if _sloth_same_filesystem "${sources[0]}" "$dest"; then
+    command mv "$@"
+    return $?
+  fi
+
   local total_size
   total_size=$(_sloth_total_size_bytes "${sources[@]}") || {
     command mv "$@"
     return $?
   }
   local threshold=$((100 * 1024 * 1024))
+  local status=0
   if (( total_size > threshold )); then
     command rsync -ah --no-owner --no-group --info=progress2 --remove-source-files "$@"
+    status=$?
   else
     command rsync -ah --no-owner --no-group --remove-source-files "$@"
+    status=$?
   fi
+  if [[ $status -eq 0 ]]; then
+    _sloth_prune_empty_dirs "${sources[@]}"
+  fi
+  return "$status"
 }
+
 rm() {
+  local a
   for a in "$@"; do
     if [[ "$a" == "all" || "$a" == */all ]]; then
       _run_with_all rm "$@"; return $?
@@ -315,18 +490,26 @@ rm() {
   done
   command rm "$@"
 }
+
+# zsh-compatible: remove empty directories only
 rd() {
+  local a status=0
   for a in "$@"; do
     if [[ "$a" == "all" || "$a" == */all ]]; then
       _run_with_all rd "$@"; return $?
     fi
-    if [ -d "$a" ]; then
-      command rm -r "$a"
+    if [[ -d "$a" && ! -L "$a" ]]; then
+      if ! command rmdir "$a"; then
+        status=1
+      fi
     else
       echo "rd: not a directory: $a" >&2
+      status=1
     fi
   done
+  return "$status"
 }
+
 # zsh features
 mkcd() {
   if [ "$#" -lt 1 ]; then
@@ -335,6 +518,84 @@ mkcd() {
   fi
   mkdir -p "$1" && cd "$1"
 }
+
+_sloth_take_extract() {
+  local filename="$1"
+  local workdir
+  workdir=$(mktemp -d "./.sloth-take-XXXXXX") || return 1
+
+  (
+    set -e
+    case "$filename" in
+      *.tar.gz)  tar -xzf "$filename" -C "$workdir" ;;
+      *.tar.bz2) tar -xjf "$filename" -C "$workdir" ;;
+      *.tar)     tar -xf  "$filename" -C "$workdir" ;;
+      *.zip)     unzip -q "$filename" -d "$workdir" ;;
+      *.rar)
+        # unrar extracts relative to cwd
+        ( cd "$workdir" && unrar x -o+ "../$filename" >/dev/null )
+        ;;
+      *)
+        echo "take: unsupported archive: $filename" >&2
+        exit 1
+        ;;
+    esac
+  )
+  local status=$?
+  if [[ $status -ne 0 ]]; then
+    rm -rf "$workdir"
+    return "$status"
+  fi
+
+  # If archive had a single top-level entry, promote it; else keep the workdir.
+  local -a entries=( "$workdir"/* "$workdir"/.[!.]* "$workdir"/..?* )
+  local -a real=()
+  local e
+  for e in "${entries[@]}"; do
+    [[ -e "$e" ]] && real+=( "$e" )
+  done
+
+  local target
+  if [[ "${#real[@]}" -eq 1 ]]; then
+    target=$(basename -- "${real[0]}")
+    if [[ -e "$target" ]]; then
+      target="${target}-taken"
+    fi
+    mv "${real[0]}" "$target"
+    rmdir "$workdir" 2>/dev/null || rm -rf "$workdir"
+  else
+    target="${filename%.*}"
+    [[ "$filename" == *.tar.gz ]] && target="${filename%.tar.gz}"
+    [[ "$filename" == *.tar.bz2 ]] && target="${filename%.tar.bz2}"
+    if [[ -e "$target" ]]; then
+      target="${workdir#./}"
+    else
+      mv "$workdir" "$target"
+    fi
+  fi
+
+  rm -f "$filename"
+  cd "$target"
+}
+
+_sloth_is_archive_url() {
+  case "$1" in
+    *.tar.gz|*.tar.bz2|*.tar|*.zip|*.rar) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_sloth_is_git_url() {
+  local arg="$1"
+  _sloth_is_archive_url "$arg" && return 1
+  [[ "$arg" == *.git ]] && return 0
+  [[ "$arg" =~ ^git@ ]] && return 0
+  [[ "$arg" =~ ^(ssh|git):// ]] && return 0
+  # https://host/owner/repo[/]
+  [[ "$arg" =~ ^https?://[^/]+/[^/]+/[^/?#]+/?$ ]] && return 0
+  return 1
+}
+
 take() {
   if [ "$#" -lt 1 ]; then
     echo "take: missing argument" >&2
@@ -347,54 +608,58 @@ take() {
   elif [[ "$arg" =~ ^(ssh|git|ftp):// ]] || [[ "$arg" =~ ^[^/@:]+@[^/:]+:.+ ]]; then
     is_url=1
   fi
-  if [[ "$is_url" -eq 1 ]]; then
-    if [[ "$arg" == *.git ]]; then
-      git clone "$arg" || return $?
-      local dir=$(basename "$arg" .git)
-      cd "$dir"
-    elif [[ "$arg" == *.tar.gz ]] || [[ "$arg" == *.tar.bz2 ]] || [[ "$arg" == *.tar ]] || [[ "$arg" == *.zip ]] || [[ "$arg" == *.rar ]]; then
-      local filename=$(basename "$arg")
-      wget "$arg" -O "$filename" || return $?
-      local base_dir
-      if [[ "$filename" == *.tar.gz ]]; then
-        base_dir="${filename%.tar.gz}"
-        mkdir -p "$base_dir"
-        tar -xzf "$filename" -C "$base_dir" || return $?
-      elif [[ "$filename" == *.tar.bz2 ]]; then
-        base_dir="${filename%.tar.bz2}"
-        mkdir -p "$base_dir"
-        tar -xjf "$filename" -C "$base_dir" || return $?
-      elif [[ "$filename" == *.tar ]]; then
-        base_dir="${filename%.tar}"
-        mkdir -p "$base_dir"
-        tar -xf "$filename" -C "$base_dir" || return $?
-      elif [[ "$filename" == *.zip ]]; then
-        base_dir="${filename%.zip}"
-        mkdir -p "$base_dir"
-        unzip "$filename" -d "$base_dir" || return $?
-      elif [[ "$filename" == *.rar ]]; then
-        base_dir="${filename%.rar}"
-        mkdir -p "$base_dir"
-        cd "$base_dir"
-        unrar x "../$filename" || return $?
-        cd ..
-      fi
-      rm "$filename"
-      cd "$base_dir"
+
+  # Local archive file
+  if [[ "$is_url" -ne 1 && -f "$arg" ]] && _sloth_is_archive_url "$arg"; then
+    local filename
+    filename=$(basename -- "$arg")
+    if [[ "$arg" != "$filename" && "$arg" != "./$filename" ]]; then
+      cp -f "$arg" "./$filename" || return $?
+    fi
+    _sloth_take_extract "$filename"
+    return $?
+  fi
+
+  if [[ "$is_url" -ne 1 ]]; then
+    mkcd "$arg"
+    return $?
+  fi
+
+  if _sloth_is_archive_url "$arg"; then
+    local filename
+    filename=$(basename "$arg")
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$arg" -o "$filename" || return $?
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q -O "$filename" "$arg" || return $?
     else
-      echo "take: unsupported URL type" >&2
+      echo "take: need curl or wget to download" >&2
       return 1
     fi
-  else
-    mkcd "$arg"
+    _sloth_take_extract "$filename"
+    return $?
   fi
+
+  if _sloth_is_git_url "$arg"; then
+    git clone "$arg" || return $?
+    local dir
+    dir=$(basename "${arg%/}")
+    dir="${dir%.git}"
+    cd "$dir"
+    return $?
+  fi
+
+  echo "take: unsupported URL type" >&2
+  return 1
 }
+
 # interactive shell extras
 if [[ $- == *i* ]]; then
   _sloth_enable_basic_colors
-  # rolling tab
+  # rolling tab (+ reverse with Shift-Tab when supported)
   bind 'set show-all-if-ambiguous on'
   bind 'TAB:menu-complete'
+  bind '"\e[Z":menu-complete-backward' 2>/dev/null || true
   if command -v fzf >/dev/null 2>&1; then
     eval "$(fzf --bash)"
   fi
@@ -402,8 +667,8 @@ if [[ $- == *i* ]]; then
   if command -v starship >/dev/null 2>&1; then
     eval "$(starship init bash)"
   fi
-  # zellij
-  if command -v zellij >/dev/null 2>&1; then
+  # zellij: opt-in only (set SLOTH_BASH_ZELLIJ=1)
+  if [[ "${SLOTH_BASH_ZELLIJ:-0}" == "1" ]] && command -v zellij >/dev/null 2>&1; then
     eval "$(zellij setup --generate-auto-start bash)"
   fi
 fi
