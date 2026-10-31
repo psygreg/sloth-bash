@@ -9,10 +9,6 @@
 ## One-liner install
 `curl -fsSL https://raw.githubusercontent.com/psygreg/sloth-bash/main/install.sh | bash`
 
-or...
-
-[<img src="button.webp">](linuxtoys://install/sloth-bash)
-
 ## Features
 - **Intuitive response:** just the file name will run it if executable; run a `*.py` file with the local `venv`/`.venv` interpreter when present (without activating it into your shell); or trigger `xdg-open` for other cases.
 - **Flatpak redirection:** simplifies running flatpak applications from terminal by making `flatpak run` obsolete through smart command handling. No more `io.github.kolunmi.Bazaar`, just `bazaar` will do the trick!
