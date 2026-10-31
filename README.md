@@ -11,9 +11,7 @@
 
 or...
 
-<a href="linuxtoys://install/sloth-bash">
-  <img src="button.webp" alt="Install with LinuxToys">
-</a>
+[![Install with LinuxToys](button.webp)](linuxtoys://install/sloth-bash)
 
 ## Features
 - **Intuitive response:** just the file name will run it if executable; run a `*.py` file with the local `venv`/`.venv` interpreter when present (without activating it into your shell); or trigger `xdg-open` for other cases.
